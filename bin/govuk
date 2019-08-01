@@ -1,0 +1,121 @@
+#!/bin/sh
+
+# The govuk script provides a consistent way to run other programs
+# related to GOV.UK, while helping to handle differences in
+# environment.
+
+if [ ! -n "$BASH" ]; then
+    exec bash "$0" $@
+fi
+
+set -e
+set -o pipefail
+
+function log {
+    if [ "$GOVUK_EXEC_DEBUG" != "" ]; then
+        echo "$1"
+    fi
+}
+
+log "\$0 is $0"
+case "$0" in
+    \/*) SCRIPT_PATH="$0";;
+    *)   log "\$0 does not start with / so using readlink -f";
+         case "Darwin" in
+             "Darwin")
+                 # readlink -f doesn't work on MacOS
+                 SCRIPT_PATH="$PWD/${0#./}";;
+             *)
+                 SCRIPT_PATH=$(readlink -f "$0");;
+         esac;;
+esac
+
+log "SCRIPT_PATH is $SCRIPT_PATH"
+
+export GOVUK_CLI_ROOT="$(dirname $(dirname $SCRIPT_PATH))"
+log "Using $GOVUK_CLI_ROOT as GOVUK_CLI_ROOT"
+
+export GOVUK_ROOT_DIR="$(dirname $GOVUK_CLI_ROOT)"
+log "Using $GOVUK_ROOT_DIR as GOVUK_ROOT_DIR"
+
+if [ "$GOVUK_EXEC_PATH" = "" ]; then
+    GOVUK_EXEC_PATH="$(dirname "$SCRIPT_PATH"):$GOVUK_ROOT_DIR/govuk-guix/bin:$GOVUK_ROOT_DIR/govuk-docker/bin"
+    log "GOVUK_EXEC_PATH is empty, so setting a default value"
+fi
+
+log "GOVUK_EXEC_PATH is $GOVUK_EXEC_PATH"
+log "Adding GOVUK_EXEC_PATH to PATH"
+
+PATH="$GOVUK_EXEC_PATH:$PATH"
+
+COMMAND="$1"
+
+log "COMMAND is $COMMAND"
+
+if [ "$COMMAND" = "" ]; then
+    echo "Please specify a command, e.g.
+
+  govuk connect"
+    exit 1
+fi
+
+COMMAND_FULL_NAME="govuk-$COMMAND"
+COMMAND_FULL_PATH=$(type -p "$COMMAND_FULL_NAME" || echo "")
+
+if [ "$COMMAND_FULL_PATH" = "" ]; then
+    echo "Command $COMMAND not found"
+    exit 1
+fi
+
+log "COMMAND_FULL_PATH is $COMMAND_FULL_PATH"
+
+# Determine if guile is available
+GUILE=""
+if [ ! -f /usr/bin/guile ]; then
+    GUILE=$(type -pf guile || echo "")
+
+    if [ "$GUILE" = "" ]; then
+        log "guile is not on the PATH"
+        GUILE="bash $GOVUK_CLI_ROOT/guix-pre-inst-env guile --no-auto-compile"
+    else
+        GUILE="$GUILE --no-auto-compile"
+    fi
+
+    log "Using $GUILE as GUILE"
+else
+    log "Using /usr/bin/guile for guile"
+fi
+
+RUBY=""
+if [ -f /usr/lib/rbenv/versions/2.6/bin/ruby ]; then
+    RUBY="/usr/lib/rbenv/versions/2.6/bin/ruby"
+else
+    if [ -f /usr/lib/rbenv/versions/2.5/bin/ruby ]; then
+        RUBY="/usr/lib/rbenv/versions/2.5/bin/ruby"
+    else
+        RUBY="ruby"
+    fi
+fi
+log "Using $RUBY as RUBY"
+
+log # empty line in log output
+
+if [[ "$COMMAND" == "connect" ]]; then
+    exec $RUBY "$COMMAND_FULL_PATH" "${@:2}"
+elif [[ "$COMMAND" == "data" ]]; then
+    GUIX=$(type -pf guile || echo "")
+    if [ -z "$GUIX" ]; then
+        exec $RUBY "$(type -p govuk-data-standalone)" "${@:2}"
+    else
+        exec $GUILE "$COMMAND_FULL_PATH" "${@:2}"
+    fi
+elif [ "$COMMAND" = "data-standalone" ]; then
+    exec $RUBY "$COMMAND_FULL_PATH" "${@:2}"
+elif [ "$COMMAND" = "system" ]; then
+    exec $GUILE "$COMMAND_FULL_PATH" "${@:2}"
+elif [ "$COMMAND" = "refresh" ]; then
+    exec $GUILE "$COMMAND_FULL_PATH" "${@:2}"
+else
+    log "Fell through to default command handling"
+    exec "$COMMAND_FULL_PATH" "${@:2}"
+fi
