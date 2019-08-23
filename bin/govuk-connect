@@ -272,7 +272,7 @@ end
 
 def config_file
   @config_file ||= begin
-    directory = ENV.fetch('XDG_CONFIG_HOME', "#{Dir.home}/.config")
+    directory = ENV.fetch('XDG_CONFIG_HOME', "#{Dir.home}/.config/govuk-cli")
 
     File.join(directory, 'config.yaml')
   end
