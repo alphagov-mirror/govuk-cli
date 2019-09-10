@@ -38,9 +38,9 @@ read_aws_config_file() {
         exit 1
     fi
 
-    ROLE_ARN=$(awk '/profile '"$profile"'/ {profile=1} /role_arn/ && profile==1 {print $3; exit}' ~/.aws/config)
-    MFA_SERIAL=$(awk '/profile '"$profile"'/ {profile=1} /mfa_serial/ && profile==1 {print $3; exit}' ~/.aws/config)
-    SOURCE_PROFILE=$(awk '/profile '"$profile"'/ {profile=1} /source_profile/ && profile==1 {print $3; exit}' ~/.aws/config)
+    ROLE_ARN=$(awk -F "=" '/profile '"$profile"'/ {profile=1} /role_arn/ && profile==1 {print $2; exit}' ~/.aws/config)
+    MFA_SERIAL=$(awk -F "=" '/profile '"$profile"'/ {profile=1} /mfa_serial/ && profile==1 {print $2; exit}' ~/.aws/config)
+    SOURCE_PROFILE=$(awk -F "=" '/profile '"$profile"'/ {profile=1} /source_profile/ && profile==1 {print $2; exit}' ~/.aws/config)
 }
 
 parse_aws_assume_role_output() {
